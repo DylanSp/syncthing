@@ -846,23 +846,114 @@ func (rcf racyCurrentFiler) CurrentFile(name string) (protocol.FileInfo, bool) {
 	return f, ok
 }
 
-func TestIssue10465(t *testing.T) {
-	// fs := fs.NewFilesystem(fs.FilesystemTypeFake, rand.String(16))
-	fs := fs.NewWalkFilesystem(&singleFileFS{
+type racyFilesystem struct {
+	fs.Filesystem
+	hasFileBeenScanned bool
+}
+
+func newRacyFilesystem() *racyFilesystem {
+	// underlying := fs.NewFilesystem(fs.FilesystemTypeFake, "")
+
+	underlying := fs.NewWalkFilesystem(&singleFileFS{
 		name:     "testfile.dat",
 		filesize: 1024,
 	})
 
-	current := make(racyCurrentFiler)
-
-	files := walkDir(fs, ".", current, nil, 0)
-	if len(files) != 1 {
-		t.Fatal("Should have scanned one file")
+	return &racyFilesystem{
+		Filesystem:         underlying,
+		hasFileBeenScanned: false,
 	}
+}
+
+func (f *racyFilesystem) Lstat(name string) (fs.FileInfo, error) {
+	if f.hasFileBeenScanned {
+		slog.Error("File has already been lstat'd")
+
+		return nil, os.ErrNotExist
+	}
+
+	f.hasFileBeenScanned = true
+
+	return f.Filesystem.Lstat(name)
+}
+
+func (f *racyFilesystem) DirNames(name string) ([]string, error) {
+	// return purposefully nonexistent file
+	return []string{"i_dont_exist"}, nil
+}
+
+// purposefully inconsistent file system; DirNames() will return the name of a file that doesn't exist
+type inconsistentFilesystem struct {
+	fs.Filesystem
+}
+
+func newInconsistentFilesystem() *inconsistentFilesystem {
+	underlying := fs.NewFilesystem(fs.FilesystemTypeFake, rand.String(16)+"?files=1")
+
+	return &inconsistentFilesystem{
+		Filesystem: underlying,
+	}
+}
+
+func (f *inconsistentFilesystem) DirNames(name string) ([]string, error) {
+	// return []string{"i_dont_exist"}, nil
+
+	slog.Error(fmt.Sprintf("DirNames called with name %v", name))
+
+	return f.Filesystem.DirNames(name)
+}
+
+func (f *inconsistentFilesystem) Lstat(name string) (fs.FileInfo, error) {
+	slog.Error(fmt.Sprintf("Lstat called with name %v", name))
+
+	return f.Filesystem.Lstat(name)
+}
+
+func TestIssue10465(t *testing.T) {
+	// fs := fs.NewFilesystem(fs.FilesystemTypeFake, rand.String(16))
+	// fs := fs.NewWalkFilesystem(&singleFileFS{
+	// 	name:     "testfile.dat",
+	// 	filesize: 1024,
+	// })
+
+	// fs := newRacyFilesystem()
+
+	// fs := newInconsistentFilesystem()
+
+	fs := fs.NewWalkFilesystem(newInconsistentFilesystem())
+
+	// current := make(racyCurrentFiler)
+
+	// files := walkDir(fs, ".", current, nil, 0)
+	// files := walkDir(fs, ".", nil, nil, 0)
+	// t.Logf("Scanned %v files", len(files))
+	// t.Log(files)
+
+	cfg, cancel := testConfig()
+	cfg.Filesystem = fs
+	defer cancel()
+	fchan := Walk(context.TODO(), cfg)
+
+	var tmp []protocol.FileInfo
+	for f := range fchan {
+		if f.Err != nil {
+			t.Errorf("Error while scanning %v: %v", f.Err, f.Path)
+		}
+		tmp = append(tmp, f.File)
+	}
+
+	// used when underlying fs is singleFileFS
+	// if len(files) != 1 {
+	// 	t.Fatal("Should have scanned one file")
+	// }
 
 	// scan again; current file should no longer be detected as existing from current,
 	// should trigger reported issue?
-	walkDir(fs, ".", current, nil, 0)
+	// walkDir(fs, ".", current, nil, 0)
+
+	// scan again; current file should no longer be detected as existing from fs
+	// should trigger reported issue?
+	// walkDir(fs, ".", nil, nil, 0)
 
 	// // remove scanned file from CurrentFiler and scan again; see if this triggers reported bug
 	// currentFile := files[0]

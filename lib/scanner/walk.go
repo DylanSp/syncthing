@@ -279,6 +279,8 @@ func (w *walker) walkAndHashFiles(ctx context.Context, toHashChan chan<- protoco
 	ignoredParent := ""
 
 	return func(path string, info fs.FileInfo, err error) error {
+		// slog.Error(fmt.Sprintf("Running callback on path: %v", path))
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -301,6 +303,8 @@ func (w *walker) walkAndHashFiles(ctx context.Context, toHashChan chan<- protoco
 		}
 
 		if fs.IsTemporary(path) {
+			slog.Error(fmt.Sprintf("Path is temporary: %v", path))
+
 			l.Debugln(w, "temporary:", path, "err:", err)
 			if err == nil && info.IsRegular() && info.ModTime().Add(w.TempLifetime).Before(now) {
 				w.Filesystem.Remove(path)
@@ -310,6 +314,8 @@ func (w *walker) walkAndHashFiles(ctx context.Context, toHashChan chan<- protoco
 		}
 
 		if fs.IsInternal(path) {
+			// slog.Error(fmt.Sprintf("Path is internal: %v", path))
+
 			l.Debugln(w, "ignored (internal):", path)
 			return skip
 		}
@@ -336,6 +342,8 @@ func (w *walker) walkAndHashFiles(ctx context.Context, toHashChan chan<- protoco
 			// No need reporting errors for files that don't exist (e.g. scan
 			// due to filesystem watcher)
 			if !fs.IsNotExist(err) {
+				slog.Error("file does not exist")
+
 				handleError(ctx, "scan", path, err, finishedChan)
 			}
 			return skip
@@ -433,6 +441,8 @@ func (w *walker) handleItem(ctx context.Context, path string, info fs.FileInfo, 
 }
 
 func (w *walker) walkRegular(ctx context.Context, relPath string, info fs.FileInfo, toHashChan chan<- protocol.FileInfo) error {
+	slog.Error(fmt.Sprintf("walkRegular called on relPath %v", relPath))
+
 	curFile, hasCurFile := w.CurrentFiler.CurrentFile(relPath)
 
 	blockSize := protocol.BlockSize(info.Size())
@@ -497,6 +507,8 @@ func (w *walker) walkRegular(ctx context.Context, relPath string, info fs.FileIn
 }
 
 func (w *walker) walkDir(ctx context.Context, relPath string, info fs.FileInfo, finishedChan chan<- ScanResult) error {
+	slog.Error(fmt.Sprintf("walkDir called on relPath %v", relPath))
+
 	curFile, hasCurFile := w.CurrentFiler.CurrentFile(relPath)
 
 	f, err := CreateFileInfo(info, relPath, w.Filesystem, w.ScanOwnership, w.ScanXattrs, w.XattrFilter)
