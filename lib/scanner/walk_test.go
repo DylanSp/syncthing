@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	rdebug "runtime/debug"
@@ -826,6 +827,48 @@ func TestIssue4841(t *testing.T) {
 	if expected := (protocol.Vector{}.Update(protocol.LocalDeviceID.Short())); !files[0].Version.Equal(expected) {
 		t.Fatalf("Expected Version == %v, got %v", expected, files[0].Version)
 	}
+}
+
+type racyCurrentFiler map[string]protocol.FileInfo
+
+var racyCurrentFilerScanned = false
+
+func (rcf racyCurrentFiler) CurrentFile(name string) (protocol.FileInfo, bool) {
+	if racyCurrentFilerScanned {
+		slog.Error("racyCurrentFiler already scanned")
+
+		return protocol.FileInfo{}, false
+	}
+
+	racyCurrentFilerScanned = true
+
+	f, ok := rcf[name]
+	return f, ok
+}
+
+func TestIssue10465(t *testing.T) {
+	// fs := fs.NewFilesystem(fs.FilesystemTypeFake, rand.String(16))
+	fs := fs.NewWalkFilesystem(&singleFileFS{
+		name:     "testfile.dat",
+		filesize: 1024,
+	})
+
+	current := make(racyCurrentFiler)
+
+	files := walkDir(fs, ".", current, nil, 0)
+	if len(files) != 1 {
+		t.Fatal("Should have scanned one file")
+	}
+
+	// scan again; current file should no longer be detected as existing from current,
+	// should trigger reported issue?
+	walkDir(fs, ".", current, nil, 0)
+
+	// // remove scanned file from CurrentFiler and scan again; see if this triggers reported bug
+	// currentFile := files[0]
+	// current[currentFile.Name] = nil
+
+	t.Log("Finished running test")
 }
 
 // TestNotExistingError reproduces https://github.com/syncthing/syncthing/issues/5385

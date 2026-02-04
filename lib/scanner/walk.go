@@ -243,6 +243,8 @@ func (w *walker) walkWithoutHashing(ctx context.Context) chan ScanResult {
 const walkFailureEventDesc = "Unexpected error while walking the filesystem during scan"
 
 func (w *walker) scan(ctx context.Context, toHashChan chan<- protocol.FileInfo, finishedChan chan<- ScanResult) {
+	slog.Error("Beginning scan")
+
 	hashFiles := w.walkAndHashFiles(ctx, toHashChan, finishedChan)
 	if len(w.Subs) == 0 {
 		if err := w.Filesystem.Walk(".", hashFiles); isWarnableError(err) {
