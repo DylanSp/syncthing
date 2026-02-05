@@ -342,6 +342,11 @@ func (w *walker) walkAndHashFiles(ctx context.Context, toHashChan chan<- protoco
 			// No need reporting errors for files that don't exist (e.g. scan
 			// due to filesystem watcher)
 			if !fs.IsNotExist(err) {
+				// DEBUGGING NOTE
+				// returning DoesNotExist from DirNames (after successfully Lstat'ing that path) hits this code path,
+				// error is swallowed
+				// returning DoesNotExist from Lstat (after DirNames on parent) also hits this code path
+
 				slog.Error("file does not exist")
 
 				handleError(ctx, "scan", path, err, finishedChan)

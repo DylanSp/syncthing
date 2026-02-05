@@ -909,6 +909,12 @@ func (f *inconsistentFilesystem) Lstat(name string) (fs.FileInfo, error) {
 	return f.Filesystem.Lstat(name)
 }
 
+func (f *inconsistentFilesystem) Open(name string) (fs.File, error) {
+	slog.Error(fmt.Sprintf("Open called with name %v", name))
+
+	return nil, os.ErrNotExist
+}
+
 func TestIssue10465(t *testing.T) {
 	// fs := fs.NewFilesystem(fs.FilesystemTypeFake, rand.String(16))
 	// fs := fs.NewWalkFilesystem(&singleFileFS{
@@ -937,7 +943,7 @@ func TestIssue10465(t *testing.T) {
 	var tmp []protocol.FileInfo
 	for f := range fchan {
 		if f.Err != nil {
-			t.Errorf("Error while scanning %v: %v", f.Err, f.Path)
+			t.Errorf("Error while scanning %v: %v", f.Path, f.Err)
 		}
 		tmp = append(tmp, f.File)
 	}
