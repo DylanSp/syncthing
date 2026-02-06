@@ -109,6 +109,11 @@ func (ph *parallelHasher) hashFiles(ctx context.Context) {
 
 			blocks, err := HashFile(ctx, ph.folderID, ph.fs, f.Name, f.BlockSize(), ph.counter)
 			if err != nil {
+				// DEBUGGING NOTE
+				// returning DoesNotExist from Open (called by HashFile) hits this code path
+				// this appears to swallow the error;
+				// it definitely doesn't get returned walking the files to scan(), so it doesn't trigger the bug
+
 				handleError(ctx, "hashing", f.Name, err, ph.outbox)
 				continue
 			}

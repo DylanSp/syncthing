@@ -248,6 +248,8 @@ func (w *walker) scan(ctx context.Context, toHashChan chan<- protocol.FileInfo, 
 	hashFiles := w.walkAndHashFiles(ctx, toHashChan, finishedChan)
 	if len(w.Subs) == 0 {
 		if err := w.Filesystem.Walk(".", hashFiles); isWarnableError(err) {
+			slog.Error("Hit aborted scan block 1")
+
 			w.EventLogger.Log(events.Failure, walkFailureEventDesc)
 			slog.ErrorContext(ctx, "Aborted scan due to an unexpected error", slogutil.Error(err))
 		}
@@ -258,6 +260,8 @@ func (w *walker) scan(ctx context.Context, toHashChan chan<- protocol.FileInfo, 
 				continue
 			}
 			if err := w.Filesystem.Walk(sub, hashFiles); isWarnableError(err) {
+				slog.Error("Hit aborted scan block 2")
+
 				w.EventLogger.Log(events.Failure, walkFailureEventDesc)
 				slog.ErrorContext(ctx, "Aborted scan due to an unexpected error", slogutil.FilePath(sub), slogutil.Error(err))
 			}
